@@ -1,7 +1,10 @@
-from pydantic import BaseSettings
 from functools import lru_cache
+from pydantic_settings import BaseSettings, SettingsConfigDict  # <-- v2 way
 
 class Settings(BaseSettings):
+    # Tell pydantic-settings where to find the .env
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+
     # LLM over OpenRouter
     llm_provider: str = "openrouter"
     openrouter_api_key: str | None = None
@@ -17,9 +20,6 @@ class Settings(BaseSettings):
     chunk_overlap: int = 200
 
     log_level: str = "INFO"
-
-    class Config:
-        env_file = ".env"
 
 @lru_cache
 def get_settings() -> "Settings":
