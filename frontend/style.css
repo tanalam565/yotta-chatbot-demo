@@ -1,0 +1,11 @@
+* { box-sizing: border-box; }
+body { font-family: system-ui, sans-serif; margin: 2rem; background: #f9fafb; }
+h1 { margin: 0 0 1rem; }
+#chat { display: grid; gap: .75rem; margin: 1rem 0; }
+.user { background: #e8efff; padding: .6rem .8rem; border-radius: .6rem; max-width: 70%; }
+.bot  { background: #eafbea; padding: .6rem .8rem; border-radius: .6rem; max-width: 70%; }
+.row { margin: .5rem 0 1rem; }
+form { display: flex; gap: .5rem; }
+input { flex: 1; padding: .6rem .8rem; border: 1px solid #ddd; border-radius: .5rem; }
+button { padding: .6rem .9rem; border: 1px solid #ddd; border-radius: .5rem; background: white; cursor: pointer; }
+button:hover { background: #f3f4f6; }
