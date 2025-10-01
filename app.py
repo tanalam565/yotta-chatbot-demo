@@ -1,26 +1,19 @@
+import os
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import RedirectResponse
+from config.settings import settings
+from src.api.routes import router
 
-from config.settings import get_settings
-from src.api.routes import router as api_router
 
-settings = get_settings()
-app = FastAPI(title="YottaReal Chatbot Demo (OpenRouter + DeepSeek)")
+app = FastAPI(title="YottaReal Chatbot Demo")
+app.include_router(router)
 
-# CORS (open for demo)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"], allow_credentials=True,
-    allow_methods=["*"], allow_headers=["*"],
-)
-
-# API routes
-app.include_router(api_router, prefix="/api")
 
 # Serve frontend
-app.mount("/", StaticFiles(directory="frontend", html=True), name="static")
+app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
 
-@app.get("/healthz")
-def healthz():
-    return {"status": "ok"}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("app:app", host=settings.app_host, port=settings.app_port, reload=True)

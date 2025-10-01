@@ -1,34 +1,40 @@
-# src/chatbot/llm_handler.py
-from config.settings import get_settings
+from typing import List
 from openai import OpenAI
+from config.settings import settings
 
-settings = get_settings()
 
-SYSTEM_FALLBACK = (
-    "You are Yotta, a helpful assistant for property management (Adara Communities). "
-    "Be concise, cite filenames when relevant, and say when you don't know."
+# Configure OpenRouter via OpenAI SDK
+client = OpenAI(
+    api_key=settings.openrouter_api_key,
+    base_url="https://openrouter.ai/api/v1",
 )
 
-class LLMHandler:
-    def __init__(self):
-        if settings.llm_provider != "openrouter":
-            raise ValueError("Unsupported LLM provider (expected 'openrouter').")
 
-        if not settings.openrouter_api_key:
-            raise ValueError("OPENROUTER_API_KEY is missing. Check your .env file!")
+SYSTEM_PROMPT = (
+    "You are Yotta, a helpful property management RAG assistant. "
+    "Answer using the retrieved context. If unsure, say you don't know and suggest adding documents. "
+    "Cite sources by filename when relevant."
+)
 
-        self.client = OpenAI(                 # <-- pass the key explicitly
-            api_key=settings.openrouter_api_key,
-            base_url=settings.openrouter_base_url,
-        )
-        self.model = settings.openrouter_model
 
-    async def generate(self, system_prompt: str, user_prompt: str) -> str:
-        resp = self.client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {"role": "system", "content": system_prompt or SYSTEM_FALLBACK},
-                {"role": "user", "content": user_prompt},
-            ],
-        )
-        return resp.choices[0].message.content.strip()
+def generate_answer(query: str, contexts: List[dict]) -> str:
+    ctx_blocks = []
+    for c in contexts:
+        src = c["metadata"].get("source", "unknown")
+        ctx_blocks.append(f"[SOURCE: {src}]\n{c['text']}")
+    context_str = "\n\n".join(ctx_blocks[:6])
+
+
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": f"Question: {query}\n\nContext:\n{context_str}"},
+    ]
+
+
+    resp = client.chat.completions.create(
+        model=settings.openrouter_model,
+        messages=messages,
+        temperature=0.2,
+        max_tokens=600,
+    )
+    return resp.choices[0].message.content.strip()

@@ -205,3 +205,24 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.venv/
+venv/
+.env
+
+
+# FAISS index persistence
+storage/
+
+
+# VSCode
+.vscode/
+
+
+# macOS
+.DS_Store

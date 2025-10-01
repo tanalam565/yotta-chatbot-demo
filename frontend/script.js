@@ -1,40 +1,30 @@
-const chat = document.getElementById('chat');
-const form = document.getElementById('f');
-const q = document.getElementById('q');
-const ingestBtn = document.getElementById('ingest');
+const ingestBtn = document.getElementById('ingestBtn');
+const ingestOut = document.getElementById('ingestOut');
+const askBtn = document.getElementById('askBtn');
+const queryEl = document.getElementById('query');
+const answerEl = document.getElementById('answer');
+const sourcesEl = document.getElementById('sources');
 
-ingestBtn.addEventListener('click', async () => {
-  ingestBtn.disabled = true;
-  ingestBtn.textContent = 'Ingesting...';
-  try {
-    const r = await fetch('/api/ingest', { method: 'POST' });
-    const data = await r.json();
-    alert(`Ingested ${data.ingested_chunks} chunks`);
-  } catch (e) {
-    alert('Ingest failed. Check server logs.');
-  } finally {
-    ingestBtn.disabled = false;
-    ingestBtn.textContent = 'Ingest sample docs';
-  }
-});
 
-form.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const user = q.value.trim();
-  if (!user) return;
-  chat.insertAdjacentHTML('beforeend', `<div class="user">${escapeHtml(user)}</div>`);
-  q.value = '';
-  const r = await fetch('/api/chat', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message: user })
+ingestBtn.onclick = async () => {
+  ingestOut.textContent = 'Ingesting...';
+  const res = await fetch('/api/ingest', { method: 'POST' });
+  const json = await res.json();
+  ingestOut.textContent = JSON.stringify(json, null, 2);
+};
+
+
+askBtn.onclick = async () => {
+  const query = queryEl.value.trim();
+  if (!query) return;
+  answerEl.textContent = 'Thinking...';
+  sourcesEl.innerHTML = '';
+  const res = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query }) });
+  const json = await res.json();
+  answerEl.textContent = json.answer || '(no answer)';
+  (json.sources || []).forEach(s => {
+    const li = document.createElement('li');
+    li.textContent = s;
+    sourcesEl.appendChild(li);
   });
-  const data = await r.json();
-  const sources = data.sources?.map(s => s.path || 'N/A').join('<br>') || '—';
-  chat.insertAdjacentHTML('beforeend', `<div class="bot">${escapeHtml(data.answer)}<div style="font-size:12px;opacity:.7;margin-top:.25rem">Sources:<br>${sources}</div></div>`);
-  chat.scrollTop = chat.scrollHeight;
-});
-
-function escapeHtml(s) {
-  return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
+};

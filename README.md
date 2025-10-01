@@ -1,19 +1,23 @@
-# yotta-chatbot-demo
-RAG-powered chatbot demo for YottaReal property management by Adara Communities
-# YottaReal Chatbot Demo (OpenRouter + DeepSeek :free)
+# YottaReal Chatbot Demo (Free Stack)
 
-A fully free RAG demo:
-- LLM via **OpenRouter** using DeepSeek `:free` models
-- Embeddings via **sentence-transformers** (local)
-- Vector search via **FAISS**
-- FastAPI backend + minimal web UI
 
-## Setup
+A demo RAG chatbot named **Yotta** for property management scenarios (Adara Communities). Built with free components:
+
+
+- LLM: OpenRouter (free-tier)
+- Embeddings: sentence-transformers (local)
+- Vector Store: FAISS (local)
+- API: FastAPI
+- Frontend: vanilla HTML/CSS/JS
+
+
+## Quickstart
+
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
+git clone <YOUR_REPO_URL>
+cd yottareal-chatbot-demo
+python -m venv .venv && source .venv/bin/activate # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-
-cp .env.example .env
-# Put your OPENROUTER_API_KEY=... in .env
+cp .env.example .env # then edit OPENROUTER_API_KEY
+python app.py # starts FastAPI at http://localhost:8000

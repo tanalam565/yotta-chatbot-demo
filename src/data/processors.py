@@ -1,19 +1,16 @@
-from typing import List, Tuple
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from typing import Dict, List
 
-def chunk_text(text: str, size: int = 1200, overlap: int = 200) -> List[str]:
-    chunks, start = [], 0
-    while start < len(text):
-        end = min(start + size, len(text))
-        chunks.append(text[start:end])
-        start = max(0, end - overlap)
-        if start == end:
-            break
-    return chunks
 
-def prepare_corpus(pairs: List[Tuple[str, dict]], size: int, overlap: int):
-    texts, metas = [], []
-    for text, meta in pairs:
-        for ch in chunk_text(text, size, overlap):
-            texts.append(ch)
-            metas.append(meta)
-    return texts, metas
+
+
+def chunk_documents(docs: Dict[str, str], chunk_size: int = 800, chunk_overlap: int = 150) -> List[Dict]:
+    splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+    all_chunks = []
+    for path, text in docs.items():
+        for i, chunk in enumerate(splitter.split_text(text)):
+            all_chunks.append({
+                "page_content": chunk,
+                "metadata": {"source": path, "chunk": i}
+            })
+    return all_chunks

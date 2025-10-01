@@ -1,26 +1,25 @@
-from functools import lru_cache
-from pydantic_settings import BaseSettings, SettingsConfigDict  # <-- v2 way
+## 5) config/settings.py
+from pydantic import BaseModel
+import os
+from dotenv import load_dotenv
 
-class Settings(BaseSettings):
-    # Tell pydantic-settings where to find the .env
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
-    # LLM over OpenRouter
-    llm_provider: str = "openrouter"
-    openrouter_api_key: str | None = None
-    openrouter_base_url: str = "https://openrouter.ai/api/v1"
-    openrouter_model: str = "deepseek/deepseek-r1:free"
+load_dotenv()
 
-    # Embeddings (local)
-    embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
 
-    # Retrieval config
-    top_k: int = 4
-    chunk_size: int = 1200
-    chunk_overlap: int = 200
+class Settings(BaseModel):
+    openrouter_api_key: str = os.getenv("OPENROUTER_API_KEY", "")
+    openrouter_model: str = os.getenv("OPENROUTER_MODEL", "google/gemma-2-9b-it:free")
 
-    log_level: str = "INFO"
 
-@lru_cache
-def get_settings() -> "Settings":
-    return Settings()
+    app_host: str = os.getenv("APP_HOST", "0.0.0.0")
+    app_port: int = int(os.getenv("APP_PORT", "8000"))
+
+
+    embed_model: str = os.getenv("EMBED_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
+    index_dir: str = os.getenv("INDEX_DIR", "storage/index")
+    docs_dir: str = os.getenv("DOCS_DIR", "data/sample_documents")
+    top_k: int = int(os.getenv("TOP_K", "4"))
+
+
+settings = Settings()
