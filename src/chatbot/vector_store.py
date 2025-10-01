@@ -67,5 +67,5 @@ class LocalFAISS:
                 "text": self.texts[idx],
                 "metadata": self.metas[idx],
                 "score": float(score)
-                })
+            })
         return results

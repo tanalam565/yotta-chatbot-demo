@@ -24,10 +24,9 @@ def generate_answer(query: str, contexts: List[dict]) -> str:
         ctx_blocks.append(f"[SOURCE: {src}]\n{c['text']}")
     context_str = "\n\n".join(ctx_blocks[:6])
 
-
     messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": f"Question: {query}\n\nContext:\n{context_str}"},
+    {"role": "system", "content": SYSTEM_PROMPT},
+    {"role": "user", "content": f"Question: {query}\n\nContext:\n{context_str}"},
     ]
 
 

@@ -33,4 +33,3 @@ def chat(req: ChatRequest):
         return result
     except FileNotFoundError:
         raise HTTPException(status_code=400, detail="Index not found. Run /api/ingest first.")
-        
