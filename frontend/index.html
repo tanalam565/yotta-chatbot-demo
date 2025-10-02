@@ -2,26 +2,37 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Yotta • YottaReal Chatbot Demo</title>
+  <title>YottaReal • Smart Partner</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
   <div class="app">
-    <header>
-      <div class="logo">🟣 Yotta</div>
-      <div class="subtitle">Property Management Assistant (Demo)</div>
+    <header class="site-header" role="banner">
+      <div class="wordmark">
+        <div class="name">
+          <span class="yotta">YOTTA</span><span class="real">REAL</span>
+        </div>
+        <div class="tagline" aria-label="Smart Partner">SMART PARTNER</div>
+      </div>
     </header>
 
-    <main id="chat">
-      <!-- messages go here -->
+    <main id="chat" class="chat" role="main" aria-live="polite" aria-label="Chat messages">
+      <!-- messages get injected here -->
     </main>
 
-    <footer>
-      <form id="chat-form">
-        <input id="user-input" type="text" placeholder="Ask about leasing, maintenance, policies..." autocomplete="off" />
-        <button type="submit">Send</button>
+    <footer class="site-footer" role="contentinfo">
+      <form id="chat-form" class="chat-form" autocomplete="off" aria-label="Send a message to Yotta">
+        <input
+          id="user-input"
+          type="text"
+          placeholder="Ask about leasing, maintenance, fees, or policies…"
+          aria-label="Your question"
+          required
+        />
+        <button type="submit" id="send-btn" title="Send message">Send</button>
       </form>
+      <small class="copyright">© <span id="year"></span> YottaReal</small>
     </footer>
   </div>
 
