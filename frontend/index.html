@@ -10,6 +10,7 @@
   <div class="container">
     <h1>Yotta — RAG Chatbot (Free Stack)</h1>
 
+    <!-- Ingestion -->
     <section class="card">
       <h2>1) Ingest Documents</h2>
       <p>Place files in <code>data/sample_documents</code> then click ingest.</p>
@@ -17,17 +18,27 @@
       <pre id="ingestOut"></pre>
     </section>
 
-
+    <!-- Chat (multi-turn history like texting) -->
     <section class="card">
-      <h2>2) Ask a Question</h2>
-      <input id="query" placeholder="Ask about tenant screening, leases, etc." />
-      <button id="askBtn">Ask</button>
-      <h3>Answer</h3>
-      <pre id="answer"></pre>
-      <h3>Sources</h3>
-      <ul id="sources"></ul>
+      <h2>2) Chat</h2>
+
+      <!-- Chat history -->
+      <div id="chat" class="chat" aria-live="polite" aria-label="Chat history"></div>
+
+      <!-- Input row -->
+      <div class="input-row">
+        <input id="msg" placeholder="Type your message and press Enter…" aria-label="Message"/>
+        <button id="sendBtn" aria-label="Send message">Send</button>
+      </div>
+
+      <!-- Note about sources -->
+      <p class="meta">
+        Answers will include only the <strong>source names actually used</strong> by the model for that turn.
+        No other document names are shown.
+      </p>
     </section>
   </div>
+
   <script src="/script.js"></script>
 </body>
 </html>

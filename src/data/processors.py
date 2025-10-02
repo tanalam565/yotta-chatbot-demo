@@ -1,8 +1,7 @@
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from typing import Dict, List
 
-
-def chunk_documents(docs: Dict[str, str], chunk_size: int = 800, chunk_overlap: int = 150) -> List[Dict]:
+def chunk_documents(docs: Dict[str, str], chunk_size: int = 1200, chunk_overlap: int = 200) -> List[Dict]:
     splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
     all_chunks = []
     for path, text in docs.items():

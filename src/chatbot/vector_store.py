@@ -3,7 +3,7 @@ from typing import List, Dict
 from sentence_transformers import SentenceTransformer
 import numpy as np
 from pathlib import Path
-
+import re
 
 try:
     import faiss
@@ -69,3 +69,25 @@ class LocalFAISS:
                 "score": float(score)
             })
         return results
+    def keyword_boost(self, query: str, min_token_len: int = 3):
+        """
+        Return a list of pseudo-hits for chunks that contain all salient tokens from the query.
+        Very cheap BM25-ish fallback so proper nouns like 'Brent Bunger' are not missed.
+        """
+        tokens = [t.lower() for t in re.findall(r"[A-Za-z][A-Za-z'-]{2,}", query)]
+        if not tokens or not self.texts:
+            return []
+
+        # require presence of the rarest tokens (2 longest tokens)
+        tokens = sorted(tokens, key=len, reverse=True)[:2]
+
+        hits = []
+        for text, meta in zip(self.texts, self.metas):
+            low = text.lower()
+            if all(tok in low for tok in tokens):
+                hits.append({
+                    "text": text,
+                    "metadata": meta,
+                    "score": 1.0  # strong match
+                })
+        return hits
