@@ -1,10 +1,16 @@
-# API
+# YottaReal Chatbot Demo API
 
-
-## POST /api/ingest
-Rebuilds the FAISS index from files in `data/sample_documents`.
-
-
-**Response**
+## POST /api/chat
+Request:
 ```json
-{ "status": "ok", "chunks": 42 }
+{
+  "message": "How do I submit a maintenance request?",
+  "session_id": "uuid-string"
+}
+{
+  "answer": "…",
+  "citations": [
+    {"id": 1, "source": "leasing_faq.md"},
+    {"id": 2, "source": "maintenance_procedures.md"}
+  ]
+}

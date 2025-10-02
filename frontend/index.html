@@ -1,34 +1,30 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
+  <title>Yotta • YottaReal Chatbot Demo</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Yotta — YottaReal RAG Chatbot</title>
-  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
-  <div class="container">
-    <h1>Yotta — RAG Chatbot (Free Stack)</h1>
+  <div class="app">
+    <header>
+      <div class="logo">🟣 Yotta</div>
+      <div class="subtitle">Property Management Assistant (Demo)</div>
+    </header>
 
+    <main id="chat">
+      <!-- messages go here -->
+    </main>
 
-    <section class="card">
-      <h2>1) Ingest Documents</h2>
-      <p>Place files in <code>data/sample_documents</code> then click ingest.</p>
-      <button id="ingestBtn">Ingest</button>
-      <pre id="ingestOut"></pre>
-    </section>
-
-
-    <section class="card">
-      <h2>2) Ask a Question</h2>
-      <input id="query" placeholder="Ask about tenant screening, leases, etc." />
-      <button id="askBtn">Ask</button>
-      <h3>Answer</h3>
-      <pre id="answer"></pre>
-      <h3>Sources</h3>
-      <ul id="sources"></ul>
-    </section>
+    <footer>
+      <form id="chat-form">
+        <input id="user-input" type="text" placeholder="Ask about leasing, maintenance, policies..." autocomplete="off" />
+        <button type="submit">Send</button>
+      </form>
+    </footer>
   </div>
-  <script src="/script.js"></script>
+
+  <script src="./script.js"></script>
 </body>
 </html>

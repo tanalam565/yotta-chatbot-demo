@@ -1,26 +1,25 @@
+# src/data/loaders.py
+
+import os
 from pathlib import Path
-from typing import List, Tuple
+from langchain_community.document_loaders import TextLoader
+from typing import List
+from langchain.schema import Document
 
-SUPPORTED_EXTS = {".txt", ".md"}
-
-try:
-    import pypdf # optional for pdf
-    SUPPORTED_EXTS.add(".pdf")
-except Exception:
-    pypdf = None
-
-
-def load_documents(docs_dir: str) -> List[Tuple[str, str]]:
-    """Return list of (path, text)."""
-    texts = []
-    for p in Path(docs_dir).rglob("*"):
-        if p.suffix.lower() in SUPPORTED_EXTS and p.is_file():
-            if p.suffix.lower() == ".pdf" and pypdf is not None:
-                texts.append((str(p), _read_pdf(p)))
-            else:
-                texts.append((str(p), p.read_text(encoding="utf-8", errors="ignore")))
-    return texts
-
-    def _read_pdf(p: Path) -> str:
-        reader = pypdf.PdfReader(str(p))
-        return "\n".join(page.extract_text() or "" for page in reader.pages)
+def load_documents(docs_dir: str) -> List[Document]:
+    """
+    Load .txt and .md files and ensure each Document carries:
+      - metadata["source"] = filename (for user-facing citation)
+      - metadata["fullpath"] = absolute path (for debugging)
+    """
+    docs: List[Document] = []
+    base = Path(docs_dir)
+    for p in base.rglob("*"):
+        if p.is_file() and p.suffix.lower() in {".txt", ".md"}:
+            loader = TextLoader(str(p), encoding="utf-8")
+            loaded = loader.load()
+            for d in loaded:
+                d.metadata["source"] = p.name
+                d.metadata["fullpath"] = str(p.resolve())
+            docs.extend(loaded)
+    return docs

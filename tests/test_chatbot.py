@@ -1,18 +1,15 @@
-from src.data.processors import chunk_documents
+
+---
+
+# 8) Basic test
+
+## `tests/test_chatbot.py`
+```python
 from src.chatbot.rag_engine import RAGEngine
 
-
-def test_chunking_and_ingest(tmp_path, monkeypatch):
-    # minimal docs
-    docs = {"doc1.txt": "Tenant must earn 3x the monthly rent."}
-    chunks = chunk_documents(docs, chunk_size=50, chunk_overlap=0)
-    assert len(chunks) >= 1
-
-
-    # use temp index dir
-    monkeypatch.setenv("INDEX_DIR", str(tmp_path / "index"))
+def test_rag_basic():
     engine = RAGEngine()
-    engine.ingest(chunks)
-    out = engine.qa("What is the income rule?", k=1)
-    assert "answer" in out
-    assert isinstance(out["sources"], list)
+    resp = engine.qa_with_history("test-session", "What is the leasing policy?")
+    assert "citations" in resp
+    assert isinstance(resp["citations"], list)
+    assert isinstance(resp["answer"], str)

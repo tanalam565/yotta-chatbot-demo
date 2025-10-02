@@ -1,40 +1,14 @@
-from typing import List
-from openai import OpenAI
+from langchain_openai import ChatOpenAI
 from config.settings import settings
 
+def get_llm():
+    if not settings.openrouter_api_key:
+        raise ValueError("OPENROUTER_API_KEY not set. Please add it to your .env")
 
-# Configure OpenRouter via OpenAI SDK
-client = OpenAI(
-    api_key=settings.openrouter_api_key,
-    base_url="https://openrouter.ai/api/v1",
-)
-
-
-SYSTEM_PROMPT = (
-    "You are Yotta, a helpful property management RAG assistant. "
-    "Answer using the retrieved context. If unsure, say you don't know and suggest adding documents. "
-    "Cite sources by filename when relevant."
-)
-
-
-def generate_answer(query: str, contexts: List[dict]) -> str:
-    ctx_blocks = []
-    for c in contexts:
-        src = c["metadata"].get("source", "unknown")
-        ctx_blocks.append(f"[SOURCE: {src}]\n{c['text']}")
-    context_str = "\n\n".join(ctx_blocks[:6])
-
-
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": f"Question: {query}\n\nContext:\n{context_str}"},
-    ]
-
-
-    resp = client.chat.completions.create(
+    # Route LangChain's OpenAI client to OpenRouter
+    return ChatOpenAI(
         model=settings.openrouter_model,
-        messages=messages,
         temperature=0.2,
-        max_tokens=600,
+        openai_api_key=settings.openrouter_api_key,
+        openai_api_base="https://openrouter.ai/api/v1",
     )
-    return resp.choices[0].message.content.strip()
