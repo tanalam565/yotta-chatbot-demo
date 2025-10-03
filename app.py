@@ -2,10 +2,13 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from config.settings import settings
-from src.api.routes import router
+from src.api.routes import router, register_handlers
 import os
 
+
 app = FastAPI(title="YottaReal Chatbot Demo", version="1.0")
+register_handlers(app)   
+app.include_router(router)
 
 # CORS (allow local dev / Codespaces)
 app.add_middleware(

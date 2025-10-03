@@ -40,12 +40,13 @@ def _is_property_related(query: str) -> bool:
 # -------------------------
 SYSTEM_PROMPT_PROPERTY = """You are Yotta, a helpful property management assistant for YottaReal (Adara Communities).
 
-RULES:
-- Answer ONLY using the provided context from the documents.
-- If the answer is not in the context, say: "I don’t know based on the available documents."
-- Do NOT include a "Citations" section in your answer; the application will add citations automatically.
-- Provide clear, factual, and complete answers (not just one sentence) when details exist in the documents.
-"""
+    RULES:
+    - Answer ONLY using the provided context from the documents.
+    - If the answer is not in the context, say: "I don’t know based on the available documents."
+    - Do NOT include a "Citations" section in your answer; the application will add citations automatically.
+    - Provide clear, factual, and complete answers (not just one sentence) when details exist in the documents.
+    - Respond in plain sentences, paragraphs, or bullet points. Do NOT use Markdowns or special formattings.
+    """
 
 QA_PROMPT_PROPERTY = ChatPromptTemplate.from_messages([
     ("system", SYSTEM_PROMPT_PROPERTY),
@@ -61,6 +62,7 @@ You can answer small-talk and general-knowledge questions directly.
 - Be short and clear.
 - Do NOT add citations.
 - If user asks for your name, say you're Yotta.
+- Respond in plain sentences, paragraphs, or bullet points. Do NOT use Markdowns or special formattings.
 """
 
 QA_PROMPT_GENERAL = ChatPromptTemplate.from_messages([
@@ -75,12 +77,31 @@ QA_PROMPT_GENERAL = ChatPromptTemplate.from_messages([
 # Output cleaning & citations
 # -------------------------
 def _clean_answer(text: str) -> str:
-    """Remove stray leading punctuation; only fallback if truly empty."""
+    """Remove leading punctuation, code fences, 'Sources:' lines, and Markdown formatting."""
     raw = (text or "").strip()
+
+    # Strip code fences
+    if raw.startswith("```"):
+        raw = re.sub(r"^```[a-zA-Z0-9]*\s*", "", raw)
+        raw = re.sub(r"\s*```$", "", raw).strip()
+
     cleaned = raw.lstrip(":").lstrip().lstrip("-").lstrip("—").strip()
+
+    # Remove 'Sources:' lines
+    cleaned = re.sub(r"(?im)^\s*source[s]?\s*:\s*.*$", "", cleaned)
+
+    # Remove Markdown stars, bold markers, etc.
+    cleaned = re.sub(r"\*+", "", cleaned)       # remove * and ** 
+    cleaned = re.sub(r"_+", "", cleaned)        # remove _
+    cleaned = re.sub(r"`+", "", cleaned)        # remove backticks
+
+    cleaned = cleaned.strip()
+
     if not cleaned or cleaned in {".", ":", "-", "—"}:
         return "I don’t know based on the available documents."
     return cleaned
+
+
 
 def _select_citations(answer_text: str, retrieved_docs: List[Document]) -> List[Dict]:
     """
@@ -124,6 +145,30 @@ def _keyword_boost(query: str, ranked: List[Tuple[Document, float, int]]) -> Lis
     ranked.sort(key=boost_index)
     return ranked
 
+def _extract_query_terms(q: str) -> set[str]:
+    # numbers + words ≥4 chars (lowercased)
+    return set(re.findall(r'\b(?:\d+|\w{4,})\b', (q or "").lower()))
+
+def _lexical_filter(query: str, docs: List[Document], min_hits: int = 1) -> List[Document]:
+    """
+    Keep only chunks that actually mention query terms (rent, grace, due, etc.).
+    If nothing matches, fall back to the original list.
+    """
+    terms = _extract_query_terms(query)
+    if not terms:
+        return docs
+    scored = []
+    for d in docs:
+        text = (d.page_content or "").lower()
+        hits = sum(1 for t in terms if t in text)
+        if hits >= min_hits:
+            scored.append((hits, d))
+    if scored:
+        # highest lexical hit first
+        scored.sort(key=lambda x: x[0], reverse=True)
+        return [d for _, d in scored]
+    return docs
+
 # -------------------------
 # RAG Engine
 # -------------------------
@@ -138,21 +183,25 @@ class RAGEngine:
         self.retriever = self.store.as_retriever(k=settings.top_k)
 
     def _retrieve(self, query: str) -> List[Document]:
-        """
-        Use FAISS similarity_search_with_score (no 0–1 relevance assumption).
-        Rank by returned order + tiny keyword boost. Keep at most 3–4 chunks for richer answers.
-        """
         k = max(settings.top_k, 8)
         try:
-            docs_with_scores = self.db.similarity_search_with_score(query, k=k)  # [(Document, score)]
+            docs_with_scores = self.db.similarity_search_with_score(query, k=k)
             ranked = [(d, s, i) for i, (d, s) in enumerate(docs_with_scores)]
         except Exception:
             docs = self.retriever.get_relevant_documents(query)
             ranked = [(d, 0.0, i) for i, d in enumerate(docs)]
 
         ranked = _keyword_boost(query, ranked)
-        TOP_CONTEXT = min(settings.top_k, 4)  # allow up to 4 chunks for completeness
-        return [d for d, _s, _i in ranked[:TOP_CONTEXT]]
+
+        # take a generous slice first…
+        preliminary = [d for d, _s, _i in ranked[: max(settings.top_k, 6)]]
+        # …then HARD filter by lexical overlap with the query (keeps rent/grace/due together)
+        filtered = _lexical_filter(query, preliminary, min_hits=1)
+
+        # final cap for context richness (3–4 chunks)
+        TOP_CONTEXT = min(settings.top_k, 4)
+        return filtered[:TOP_CONTEXT]
+
 
     def qa_with_history(self, session_id: str, query: str) -> Dict:
         history = _SESSION_MEMORY.setdefault(session_id, [])
