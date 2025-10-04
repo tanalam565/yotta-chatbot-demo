@@ -7,8 +7,9 @@ import os
 
 
 app = FastAPI(title="YottaReal Chatbot Demo", version="1.0")
-register_handlers(app)   
-app.include_router(router)
+
+# Register error handlers
+register_handlers(app)
 
 # CORS (allow local dev / Codespaces)
 app.add_middleware(
@@ -18,10 +19,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# API
+# Include API router FIRST (before static files)
 app.include_router(router)
 
-# Serve frontend
+# Serve frontend - MUST BE LAST (catches all remaining routes)
 frontend_dir = os.path.join(os.path.dirname(__file__), "frontend")
 app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")
 

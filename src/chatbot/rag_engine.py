@@ -2,6 +2,7 @@
 
 from typing import Dict, List, Tuple
 import re
+import os
 
 from langchain.prompts import ChatPromptTemplate
 from langchain.schema import Document
@@ -13,40 +14,30 @@ from src.data.processors import chunk_documents
 from src.chatbot.vector_store import VectorStore
 
 # -------------------------
-# In-memory chat history
+# In-memory chat history & session indexes
 # -------------------------
 _SESSION_MEMORY: Dict[str, List[Dict[str, str]]] = {}
+_SESSION_INDEXES: Dict[str, VectorStore] = {}
 
 def _format_history(messages: List[Dict[str, str]]) -> str:
     return "\n".join([f"{m['role'].capitalize()}: {m['content']}" for m in messages])
 
 # -------------------------
-# Intent detection
-# -------------------------
-PROPERTY_KEYWORDS = {
-    "rent", "lease", "leasing", "payment", "pay", "late", "grace", "maintenance",
-    "work order", "repair", "unit", "apartment", "policy", "screening", "pet",
-    "deposit", "move-in", "move in", "move-out", "move out", "renewal", "yottareal",
-    "adara", "community", "hoa", "notice", "eviction", "fee", "utilities",
-    "parking", "amenities", "resident", "tenant", "application"
-}
-
-def _is_property_related(query: str) -> bool:
-    q = (query or "").lower()
-    return any(k in q for k in PROPERTY_KEYWORDS)
-
-# -------------------------
 # Prompts
 # -------------------------
-SYSTEM_PROMPT_PROPERTY = """You are Yotta, a helpful property management assistant for YottaReal (Adara Communities).
+SYSTEM_PROMPT_PROPERTY = """You are Yotta, a helpful assistant for YottaReal.
 
-    RULES:
-    - Answer ONLY using the provided context from the documents.
-    - If the answer is not in the context, say: "I don’t know based on the available documents."
-    - Do NOT include a "Citations" section in your answer; the application will add citations automatically.
-    - Provide clear, factual, and complete answers (not just one sentence) when details exist in the documents.
-    - Respond in plain sentences, paragraphs, or bullet points. Do NOT use Markdowns or special formattings.
-    """
+CRITICAL INSTRUCTIONS:
+- You have been provided with specific document content in the context below.
+- Use ONLY the information from the provided context to answer questions.
+- The context contains the actual text extracted from the documents provided including uploaded documents by the user.
+- If the context contains relevant information, provide a complete answer based on that information.
+- Only say "I don't know based on the available documents" if the context truly has NO information related to the question.
+- Do NOT say you cannot access files - the file content has already been extracted and provided to you in the context.
+- Provide clear, detailed answers using the context information.
+- Do NOT include a "Citations" section; citations are added automatically.
+- Respond in plain sentences or paragraphs or bullet points without Markdown formatting.
+"""
 
 QA_PROMPT_PROPERTY = ChatPromptTemplate.from_messages([
     ("system", SYSTEM_PROMPT_PROPERTY),
@@ -80,48 +71,33 @@ def _clean_answer(text: str) -> str:
     """Remove leading punctuation, code fences, 'Sources:' lines, and Markdown formatting."""
     raw = (text or "").strip()
 
-    # Strip code fences
     if raw.startswith("```"):
         raw = re.sub(r"^```[a-zA-Z0-9]*\s*", "", raw)
         raw = re.sub(r"\s*```$", "", raw).strip()
 
     cleaned = raw.lstrip(":").lstrip().lstrip("-").lstrip("—").strip()
-
-    # Remove 'Sources:' lines
     cleaned = re.sub(r"(?im)^\s*source[s]?\s*:\s*.*$", "", cleaned)
-
-    # Remove Markdown stars, bold markers, etc.
-    cleaned = re.sub(r"\*+", "", cleaned)       # remove * and ** 
-    cleaned = re.sub(r"_+", "", cleaned)        # remove _
-    cleaned = re.sub(r"`+", "", cleaned)        # remove backticks
-
+    cleaned = re.sub(r"\*+", "", cleaned)
+    cleaned = re.sub(r"_+", "", cleaned)
+    cleaned = re.sub(r"`+", "", cleaned)
     cleaned = cleaned.strip()
 
     if not cleaned or cleaned in {".", ":", "-", "—"}:
-        return "I don’t know based on the available documents."
+        return "I don't know based on the available documents."
     return cleaned
 
-
-
 def _select_citations(answer_text: str, retrieved_docs: List[Document]) -> List[Dict]:
-    """
-    Strict selection:
-      - Match numeric facts and relevant key phrases contained in the final answer.
-      - Require >= 2 overlaps (numbers or key terms) for a doc to count.
-      - If nothing matches, fall back to the single top retrieved doc.
-    """
     ans = (answer_text or "").lower()
     numbers = set(re.findall(r'\b\d+\b', ans))
     key_terms = {"grace", "period", "rent", "due", "fee", "policy", "maintenance", "lease", "leasing", "payment",
-                 "adar", "adara", "resident", "tenant", "community"}
+                 "adar", "adara", "resident", "tenant", "community", "experience", "skills", "education", 
+                 "work", "resume", "background", "developer", "engineer", "manager", "sales"}
 
     selected, seen = [], set()
     for d in retrieved_docs:
         text = (d.page_content or "").lower()
-        overlap = 0
-        overlap += sum(1 for n in numbers if n in text)
-        overlap += sum(1 for k in key_terms if k in text)
-        if overlap >= 2:
+        overlap = sum(1 for n in numbers if n in text) + sum(1 for k in key_terms if k in text)
+        if overlap >= 1:  # Lowered threshold
             src = d.metadata.get("source") or d.metadata.get("path") or "document"
             if src not in seen:
                 selected.append(src)
@@ -133,10 +109,10 @@ def _select_citations(answer_text: str, retrieved_docs: List[Document]) -> List[
     return [{"id": i + 1, "source": s} for i, s in enumerate(selected)]
 
 # -------------------------
-# Retrieval helpers (FAISS-safe)
+# Retrieval helpers
 # -------------------------
 def _keyword_boost(query: str, ranked: List[Tuple[Document, float, int]]) -> List[Tuple[Document, float, int]]:
-    q_tokens = set(re.findall(r'\b(?:\d+|\w{4,})\b', (query or "").lower()))
+    q_tokens = set(re.findall(r'\b(?:\d+|\w{3,})\b', (query or "").lower()))
     def boost_index(item):
         d, _score, idx = item
         text = (d.page_content or "").lower()
@@ -145,84 +121,79 @@ def _keyword_boost(query: str, ranked: List[Tuple[Document, float, int]]) -> Lis
     ranked.sort(key=boost_index)
     return ranked
 
-def _extract_query_terms(q: str) -> set[str]:
-    # numbers + words ≥4 chars (lowercased)
-    return set(re.findall(r'\b(?:\d+|\w{4,})\b', (q or "").lower()))
-
-def _lexical_filter(query: str, docs: List[Document], min_hits: int = 1) -> List[Document]:
-    """
-    Keep only chunks that actually mention query terms (rent, grace, due, etc.).
-    If nothing matches, fall back to the original list.
-    """
-    terms = _extract_query_terms(query)
-    if not terms:
-        return docs
-    scored = []
-    for d in docs:
-        text = (d.page_content or "").lower()
-        hits = sum(1 for t in terms if t in text)
-        if hits >= min_hits:
-            scored.append((hits, d))
-    if scored:
-        # highest lexical hit first
-        scored.sort(key=lambda x: x[0], reverse=True)
-        return [d for _, d in scored]
-    return docs
-
 # -------------------------
 # RAG Engine
 # -------------------------
 class RAGEngine:
     def __init__(self):
         self.llm = get_llm()
-        self.store = VectorStore()
-
+        
+        # Permanent knowledge base
+        self.permanent_store = VectorStore()
         docs = load_documents(settings.docs_dir)
-        chunks = chunk_documents(docs)  # chunk_size updated in processors.py
-        self.db = self.store.build_or_load(chunks)
-        self.retriever = self.store.as_retriever(k=settings.top_k)
+        chunks = chunk_documents(docs)
+        self.permanent_db = self.permanent_store.build_or_load(chunks)
 
-    def _retrieve(self, query: str) -> List[Document]:
-        k = max(settings.top_k, 8)
+    def build_session_index(self, session_id: str, session_dir: str):
+        """Build a temporary index for session-specific uploads."""
+        if not os.path.exists(session_dir) or not os.listdir(session_dir):
+            return
+        
+        session_store = VectorStore(index_dir=f"data/indexes/session_{session_id}")
+        docs = load_documents(session_dir)
+        chunks = chunk_documents(docs)
+        session_store.build_or_load(chunks)
+        _SESSION_INDEXES[session_id] = session_store
+
+    def clear_session_index(self, session_id: str):
+        """Remove session-specific index from memory."""
+        if session_id in _SESSION_INDEXES:
+            del _SESSION_INDEXES[session_id]
+
+    def _retrieve(self, session_id: str, query: str) -> List[Document]:
+        """Retrieve from both permanent and session-specific indexes, prioritizing session uploads."""
+        k = max(settings.top_k, 4)
+        all_docs = []
+
+        # Search session-specific uploads FIRST if they exist
+        if session_id in _SESSION_INDEXES:
+            try:
+                session_db = _SESSION_INDEXES[session_id]._db
+                sess_docs = session_db.similarity_search_with_score(query, k=k)
+                # Prioritize session docs by giving them better scores (boost them)
+                all_docs.extend([(d, s * 0.5, i) for i, (d, s) in enumerate(sess_docs)])
+            except Exception as e:
+                print(f"Session index search failed: {e}")
+
+        # Then search permanent knowledge base
         try:
-            docs_with_scores = self.db.similarity_search_with_score(query, k=k)
-            ranked = [(d, s, i) for i, (d, s) in enumerate(docs_with_scores)]
-        except Exception:
-            docs = self.retriever.get_relevant_documents(query)
-            ranked = [(d, 0.0, i) for i, d in enumerate(docs)]
+            perm_docs = self.permanent_db.similarity_search_with_score(query, k=k)
+            all_docs.extend([(d, s, i + 100) for i, (d, s) in enumerate(perm_docs)])
+        except Exception as e:
+            print(f"Permanent index search failed: {e}")
 
-        ranked = _keyword_boost(query, ranked)
+        if not all_docs:
+            return []
 
-        # take a generous slice first…
-        preliminary = [d for d, _s, _i in ranked[: max(settings.top_k, 6)]]
-        # …then HARD filter by lexical overlap with the query (keeps rent/grace/due together)
-        filtered = _lexical_filter(query, preliminary, min_hits=1)
+        # Sort by similarity score (lower is better for FAISS)
+        # Session docs will rank higher due to the 0.5 multiplier
+        all_docs.sort(key=lambda x: x[1])
+        all_docs = _keyword_boost(query, all_docs)
 
-        # final cap for context richness (3–4 chunks)
-        TOP_CONTEXT = min(settings.top_k, 4)
-        return filtered[:TOP_CONTEXT]
-
+        return [d for d, _s, _i in all_docs[:max(settings.top_k, 4)]]
 
     def qa_with_history(self, session_id: str, query: str) -> Dict:
         history = _SESSION_MEMORY.setdefault(session_id, [])
 
-        # "previous question" shortcut
         if "previous question" in (query or "").lower():
             last_q = next((m["content"] for m in reversed(history) if m["role"] == "user"), None)
             ans = f'The previous question you asked was: "{last_q}"' if last_q else "No previous question found."
             return {"answer": ans, "citations": []}
 
-        is_property = _is_property_related(query)
-
-        if is_property:
-            # PROPERTY / RAG MODE
-            retrieved = self._retrieve(query)
-            if not retrieved:
-                history.append({"role": "user", "content": query})
-                fallback = "I don’t know based on the available documents."
-                history.append({"role": "assistant", "content": fallback})
-                return {"answer": fallback, "citations": []}
-
+        # Search both permanent and session documents
+        retrieved = self._retrieve(session_id, query)
+        
+        if retrieved:
             context_block = "\n\n".join([f"[{i+1}] {d.page_content}" for i, d in enumerate(retrieved)])
             history_text = _format_history(history)
 
@@ -235,9 +206,7 @@ class RAGEngine:
 
             citations = _select_citations(answer_text, retrieved)
             return {"answer": answer_text, "citations": citations}
-
         else:
-            # GENERAL / SMALL-TALK MODE (no citations)
             history_text = _format_history(history)
             chain = QA_PROMPT_GENERAL | self.llm
             response = chain.invoke({"history": history_text, "question": query})
