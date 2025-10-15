@@ -1,1 +1,0 @@
-Rent is due on the 1st. Grace period 3 days.
